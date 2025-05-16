@@ -1,5 +1,6 @@
 from pathlib import Path
 from copy import deepcopy as dp
+import json
 
 import scrapy
 from scrapy.exporters import JsonItemExporter
@@ -7,6 +8,12 @@ from scrapy.exporters import JsonItemExporter
 '''
 tz: https://docs.google.com/document/d/19mLRcZKbezZl9SCv709UcpcssFJycez6/edit?tab=t.0
 '''
+
+CITY_SET = 'Краснодар'
+CITY_DEF = 'Краснодар'
+CITY_UUID_DEF = '4a70f9e0-46ae-11e7-83ff-00155d026416'
+
+CITIES_URL = 'https://alkoteka.com/web-api/v1/city?page={page}'
 
 START_URLS = [
     "https://alkoteka.com/catalog/slaboalkogolnye-napitki-2", 
@@ -51,16 +58,35 @@ OUT_TPL = {
 
 testurl = '''
 https://alkoteka.com/web-api/v1/product
-?city_uuid=4a70f9e0-46ae-11e7-83ff-00155d026416&options%5Bcena%5D[]=400&options%5Bcena%5D[]=2990
+?city_uuid=4a70f9e0-46ae-11e7-83ff-00155d026416
+&options%5Bcena%5D[]=400
+&options%5Bcena%5D[]=2990
 &page=1&per_page=20&root_category_slug=slaboalkogolnye-napitki-2
 '''
 
+
+testurl = '''
+https://alkoteka.com/web-api/v1/product
+?city_uuid=4a70f9e0-46ae-11e7-83ff-00155d026416
+&options%5Bvid%5D[]=pivo-temnoe-filtrovannoe
+&options%5Bvid%5D[]=pivo-temnoe-nefiltrovannoe
+&page=1&per_page=20&root_category_slug=slaboalkogolnye-napitki-2
+'''
+
+'''
+https://alkoteka.com/web-api/v1/product
+?city_uuid=4a70f9e0-46ae-11e7-83ff-00155d026416&page=4
+&per_page=20&root_category_slug=slaboalkogolnye-napitki-2
+'''
 
 class QuotesSpider(scrapy.Spider):
     '''
     hello world spider
     '''
     name = "quotes"
+    cities = {}
+    cities_page = 1
+    city_uuid = CITY_UUID_DEF
 
     async def start(self):
         '''
@@ -78,12 +104,32 @@ class QuotesSpider(scrapy.Spider):
             # "https://quotes.toscrape.com/page/1/",
             # "https://quotes.toscrape.com/page/2/",
         ]
-        urls = START_URLS
-        for url in urls:
-            print(f'catalog url: {url}')
-            yield scrapy.Request(url=url, callback=self.parsePages)
+        return self.getCities()
+    
+    def getCities(self):
+        url = CITIES_URL.format(page=self.cities_page)
+        yield scrapy.Request(url=url, callback=self.parseCities)
 
-    def parsePages(self, response):
+    def parseCities(self, response):
+        data = json.loads(response.text)
+        for city in data['results']:
+            self.cities[city['name']] = city['uuid']
+
+        if data['meta']['has_more_pages']:
+            self.cities_page = self.cities_page + 1
+            url = CITIES_URL.format(page=self.cities_page)
+            yield scrapy.Request(url=url, callback=self.parseCities)
+        else:
+            print('sites: ', self.cities)
+            if CITY_SET in self.cities:
+                self.city_uuid = self.cities[CITY_SET]
+            urls = START_URLS
+            for url in urls:
+                print(f'catalog url: {url}')
+                # print(scrapy.Request(url=url, callback=self.parseCatalog).body)
+                yield scrapy.Request(url=url, callback=self.parseCatalog)
+
+    def parseCatalog(self, response):
         print(f'status: {response.status}')
         print(f'response: ', dir(response))
         page = response.url.split("/")[-2]
@@ -100,6 +146,8 @@ class QuotesSpider(scrapy.Spider):
         item['title'] = response.css('title::text').get(),
         yield item
 
+        # next_page = response.css("li.next a::attr(href)").get()
+        urls = response.css("li.next a::attr(href)").get()
         # for url in urls:
         #     print(f'item url: {url}')
         #     yield scrapy.Request(url=url, callback=self.parsePage)

@@ -422,3 +422,5 @@ pdu
 /hhvc_001/**/__pycache__
 /hhvc_001/*.html
 /hhvc_001/**/*.html
+/hhvc_001/*.json
+/hhvc_001/**/*.json
