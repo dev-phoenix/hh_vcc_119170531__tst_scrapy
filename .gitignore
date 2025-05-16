@@ -399,3 +399,19 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# project settings
+*.*
+.*
+_*
+req
+pjs
+pdu
+!/src/freelancer_earnings_bd_test.csv
+!/.gitignore
+!/requirements.txt
+!/history.md
+!/lib_ts.py
+!/ts_scrapy.py
+!README.md
+!report*
