@@ -415,3 +415,10 @@ pdu
 !/ts_scrapy.py
 !README.md
 !report*
+
+!/hhvc_001/*
+!/hhvc_001/**/*
+
+/hhvc_001/**/__pycache__
+/hhvc_001/*.html
+/hhvc_001/**/*.html
