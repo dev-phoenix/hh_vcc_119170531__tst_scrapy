@@ -3,6 +3,7 @@ quotes_spider.py
 tz: https://docs.google.com/document/d/\
 19mLRcZKbezZl9SCv709UcpcssFJycez6/edit?tab=t.0
 """
+
 from pathlib import Path
 from copy import deepcopy as dp
 import json
@@ -12,14 +13,18 @@ import scrapy
 
 # from scrapy.exporters import JsonItemExporter
 
-
+# set location
 CITY_SET = "Краснодар"
 CITY_SET = "Москва"
+
+# default location
 CITY_DEF = "Краснодар"
 CITY_UUID_DEF = "4a70f9e0-46ae-11e7-83ff-00155d026416"
 
+# template for collecting locations
 CITIES_URL = "https://alkoteka.com/web-api/v1/city?page={page}"
 
+# array with catalog urls
 START_URLS = [
     "https://alkoteka.com/catalog/slaboalkogolnye-napitki-2",
     "https://alkoteka.com/catalog/slaboalkogolnye-napitki-2/\
@@ -29,6 +34,7 @@ options-vid_pivo-temnoe-nefiltrovannoe",
 options-cena_400/options-cena_2990",
 ]
 
+# template for output items
 OUT_TPL = {
     "timestamp": 0,  # int,  # Дата и время сбора товара в формате timestamp.
     "RPC": "",  # "str",  # Уникальный код товара.
@@ -85,6 +91,7 @@ OUT_TPL = {
     # Размер у одежды или обуви варинтами не считаются).
 }
 
+# exemples of json request
 TESTURL = """
 https://alkoteka.com/web-api/v1/product
 ?city_uuid=4a70f9e0-46ae-11e7-83ff-00155d026416
@@ -112,6 +119,7 @@ https://alkoteka.com/web-api/v1/product
 class QuotesSpider(scrapy.Spider):
     """
     hello world spider
+    transformed for tecnical tasks
     """
 
     name = "quotes"
@@ -120,6 +128,8 @@ class QuotesSpider(scrapy.Spider):
     city_name = CITY_DEF
     city_uuid = CITY_UUID_DEF
     product_urls = []
+    catalog_parsed_count = 0
+    catalog_urls = []
 
     async def start(self):
         """
@@ -139,6 +149,7 @@ class QuotesSpider(scrapy.Spider):
         # ]
         # url = CITIES_URL.format(page=self.cities_page)
         # yield scrapy.Request(url=url, callback=self.parse)
+        self.catalog_urls = START_URLS
         return self.get_cities()
 
     def get_cities(self):
@@ -166,10 +177,15 @@ class QuotesSpider(scrapy.Spider):
             if CITY_SET in self.cities:
                 self.city_uuid = self.cities[CITY_SET]
                 self.city_name = CITY_SET
-            print("\033[1;30;1;47mselected location:", self.city_name, self.city_uuid, "\033[0m")
+            print(
+                "\033[1;30;1;47mselected location:",
+                self.city_name,
+                self.city_uuid,
+                "\033[0m",
+            )
 
             # collect category products
-            urls = START_URLS
+            urls = self.catalog_urls
             for url in urls:
                 url = self.url_to_rest(url, page=1)
                 self.logp(f"catalog url: {url}")
@@ -183,104 +199,93 @@ class QuotesSpider(scrapy.Spider):
         """
         b = False
         if b:
-            print('parse')
+            print("parse")
             print(response)
-        yield 'item'
+        yield "item"
 
     def logp(self, *args, **kwargs):
-        """colored print
-        """
-        fg = kwargs.get('fg',30)
-        bg = kwargs.get('bg',47)
-        if 'fg' in kwargs:
-            del kwargs['fg']
-        if 'bg' in kwargs:
-            del kwargs['bg']
+        """colored print"""
+        fg = kwargs.get("fg", 30)
+        bg = kwargs.get("bg", 47)
+        if "fg" in kwargs:
+            del kwargs["fg"]
+        if "bg" in kwargs:
+            del kwargs["bg"]
         print()
         print(f"\033[1;{fg};1;{bg}m", *args, "\033[0m", **kwargs)
 
-
-    def url_to_rest(self, url: str, **kwargs: dict)->str:
-        """convert public url to json request url
-        """
-        if 'web-api' in url:
+    def url_to_rest(self, url: str, **kwargs: dict) -> str:
+        """convert public url to json request url"""
+        if "web-api" in url:
             return url
 
-        gate = 'https://alkoteka.com/web-api/v1/'
-        ptype = 'product'
+        gate = "https://alkoteka.com/web-api/v1/"
+        ptype = "product"
         cuuid = self.city_uuid
-        page = kwargs.get('page', 1)
-        per_page = kwargs.get('per_page', 100)
-        curl = url.replace('https://','')
-        curl = curl.replace('http://','')
-        curl = curl.split('/')
+        page = kwargs.get("page", 1)
+        per_page = kwargs.get("per_page", 100)
+        curl = url.replace("https://", "")
+        curl = curl.replace("http://", "")
+        curl = curl.split("/")
 
         opts = []
-        opts.append(('city_uuid', cuuid))
+        opts.append(("city_uuid", cuuid))
 
-        if curl[1] == 'catalog':
+        if curl[1] == "catalog":
             catalog = curl[2]
             _opts = curl[3:]
             _opts = self.url_opts_parse(_opts)
             opts.extend(_opts)
-            opts.append(('page', f'{page}'))
-            opts.append(('per_page', f'{per_page}'))
-            opts.append(('root_category_slug', f'{catalog}'))
+            opts.append(("page", f"{page}"))
+            opts.append(("per_page", f"{per_page}"))
+            opts.append(("root_category_slug", f"{catalog}"))
 
-        self.logp('from url:', url, fg=31)
-        self.logp('curl:', curl)
-        self.logp('opts:', opts)
+        # self.logp('from url:', url, fg=31)
+        # self.logp('curl:', curl)
+        # self.logp('opts:', opts)
 
         opts = up.urlencode(opts)
-        url = f'{gate}{ptype}?{opts}'
+        url = f"{gate}{ptype}?{opts}"
 
         return url
 
-
     def url_opts_parse(self, opts: list) -> list:
-        """Build options query dict
-        """
+        """Build options query dict"""
         _opts = []
         for opt in opts:
-            if opt.startswith('options'):
-                opt = opt.split('_')
+            if opt.startswith("options"):
+                opt = opt.split("_")
                 key = f"options[{opt[0].split('-')[1]}][]"
                 # if key not in _opts:
                 #     _opts[key] = []
                 _opts.append((key, opt[1]))
         return _opts
 
-
-    def url_page_increment(self, url:str) -> str:
-        """create url for next page
-        """
+    def url_page_increment(self, url: str) -> str:
+        """create url for next page"""
         url = up.urlparse(url)
         opts = up.parse_qsl(url.query)
-        self.logp('url_page_increment', opts, fg=34)
+        # self.logp('url_page_increment', opts, fg=34)
         _opts = []
         for opt in opts:
-            if opt[0] == 'page':
-                # opt[1] = int(opt[1]) + 1
+            if opt[0] == "page":
                 tap = (opt[0], int(opt[1]) + 1)
                 _opts.append(tap)
             else:
                 _opts.append(opt)
-        # page = int(opts['page'])
-        # opts['page'] = page + 1
         opts = up.urlencode(_opts)
-        self.logp('urlencode', opts)
+        # self.logp('urlencode', opts)
         url = url._replace(query=opts)
         url = up.urlunparse(url)
-        self.logp('url_page_increment url', url, fg=35)
+        self.logp("url_page_increment url", url, fg=35)
         return url
-
 
     def parse_catalog(self, response):
         """
         parse catalog pages
         """
-        print(f"status: {response.status}")
-        print("response: ", dir(response))
+        # print(f"status: {response.status}")
+        # print("response: ", dir(response))
 
         url = response.url
         self.logp("url:", url, fg=31, bg=46)
@@ -288,17 +293,28 @@ class QuotesSpider(scrapy.Spider):
         data = response.json()
         # print("data: ", data)
 
-        self.product_urls.extend(res['product_url'] for res in data['results'])
-        self.log("\033[1;30;1;47mproducts count:"\
-                + str(len(self.product_urls)) + "\033[0m")
+        self.product_urls.extend(res["product_url"] for res in data["results"])
+        pcou = len(self.product_urls)
+        self.log(f"\033[1;30;1;47mproducts count: {pcou}\033[0m")
 
-        if data['meta']['has_more_pages'] :
+        if data["meta"]["has_more_pages"]:
             url = self.url_page_increment(url)
             self.logp(f"parse catalog url: {url}")
             self.log("\033[1;30;1;47mcatalog url:" + url + "\033[0m")
             # print(scrapy.Request(
             # url=url, callback=self.parse_catalog).body)
             yield scrapy.Request(url=url, callback=self.parse_catalog)
+        else:
+            self.catalog_parsed_count = self.catalog_parsed_count + 1
+            if len(self.catalog_parsed_count) == len(self.catalog_urls):
+                # collect products data
+                urls = self.product_urls
+                for url in urls:
+                    url = self.url_to_rest(url, page=1)
+                    self.logp(f"product url: {url}")
+                    # print(scrapy.Request(
+                    # url=url, callback=self.parse_catalog).body)
+                    yield scrapy.Request(url=url, callback=self.parse_page)
 
         # page = response.url.split("/")[-2]
 
