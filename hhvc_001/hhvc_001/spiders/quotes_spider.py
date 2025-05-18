@@ -8,7 +8,11 @@ from pathlib import Path
 from copy import deepcopy as dp
 import json
 import urllib.parse as up
+import time
+import random
+import re
 
+from bs4 import BeautifulSoup as bs
 import scrapy
 
 # from scrapy.exporters import JsonItemExporter
@@ -115,6 +119,20 @@ https://alkoteka.com/web-api/v1/product
 &per_page=20&root_category_slug=slaboalkogolnye-napitki-2
 """
 
+"""
+https://alkoteka.com/product/pivo-1/shtefans-brau-shvarcbir_29300
+=>
+https://alkoteka.com/web-api/v1/product/shtefans-brau-shvarcbir_29300
+?city_uuid=985b3eea-46b4-11e7-83ff-00155d026416
+
+https://alkoteka.com/web-api/v1/product/
+pivnoy-napitok-ganza-goze-tomato-journey-smoked_98103
+?city_uuid=396df2b5-7b2b-11eb-80cd-00155d039009
+
+https://alkoteka.com/web-api/v1/product/velkopopovickiy-kozel-svetlyy_91167
+?city_uuid=396df2b5-7b2b-11eb-80cd-00155d039009
+"""
+
 
 class QuotesSpider(scrapy.Spider):
     """
@@ -122,14 +140,25 @@ class QuotesSpider(scrapy.Spider):
     transformed for tecnical tasks
     """
 
-    name = "quotes"
+    name = "alco"
+
+    custom_settings = {
+        "DOWNLOAD_DELAY": 0.25,  # 250 ms of delay
+    }
+
     cities = {}
     cities_page = 1
     city_name = CITY_DEF
     city_uuid = CITY_UUID_DEF
-    product_urls = []
+    product_urls = {}
     catalog_parsed_count = 0
     catalog_urls = []
+
+    # proxy
+    # https://proxy5.net/ru/free-proxy
+    proxy_list = []
+
+    scenario = "test poxy"
 
     async def start(self):
         """
@@ -149,8 +178,138 @@ class QuotesSpider(scrapy.Spider):
         # ]
         # url = CITIES_URL.format(page=self.cities_page)
         # yield scrapy.Request(url=url, callback=self.parse)
-        self.catalog_urls = START_URLS
-        return self.get_cities()
+
+        self.scenario = "get alco"
+        self.scenario = "test proxy"
+        self.logp("scenario:", self.scenario.strip())
+
+        if self.scenario.strip() == "test proxy":
+            return self.get_proxy()
+
+        if self.scenario.strip() == "get alco":
+            self.catalog_urls = START_URLS
+            return self.get_cities()
+
+    def get_proxy(self):
+        """
+        get proxies
+        """
+        self.logp("get proxies")
+        params = {}
+        url = "https://proxy5.net/ru/wp-admin/admin-ajax.php"
+        url = "https://proxy5.net/ru/free-proxy"
+        req_args = {}
+        req_args["url"] = url
+        req_args["callback"] = self.parse_proxy_get_nonce
+        nonce = ""
+        # req_args['method'] = 'POST'
+        # req_args['body'] = {'action':'proxylister_load_filtered',
+        # 'nonce':nonce,'filter[protocols]':'HTTP',
+        # 'filter[anonymity]':'Anonymous','filter[latency]':'',
+        # 'filter[page_size]':'20',}
+        self.logp("req_args:", req_args)
+        yield scrapy.Request(**req_args)
+
+    def parse_proxy_get_nonce(self, response):
+        """
+        collect proxy nonce
+        """
+        self.logp("collect proxy nonce")
+        body = response.body.decode()
+        # print(body)
+        soup = bs(body, "html.parser")
+        self.logp(soup.title.string, fg=31)
+
+        nonce_script_id = "proxylister-js-js-extra"
+        script = soup.find("script", id=nonce_script_id)
+        # self.logp(script, fg=31)
+        res = script.prettify()
+        # print(res)
+        _dt = re.search(r'(\{.*\})', res)
+        data = _dt.group(0)
+        # self.logp(data, fg=31)
+        data = json.loads(data)
+        nonce = data['nonce']
+        self.logp('nonce:', nonce, fg=31)
+        ret = {'nonce': nonce}
+        # yield ret
+
+        # nonce_script_id = 'proxylister-js-js-extra'
+        # script = soup.find('script', id = nonce_script_id)
+        # print(script.prettyfy())
+
+        urls = [
+            "https://proxy5.net/ru/free-proxy",
+            "https://proxy5.net/ru/wp-admin/admin-ajax.php",
+        ]
+        url = urls[0]
+        req_args = {}
+        # nonce = ""
+        if nonce:
+            req_args["method"] = "POST"
+            req_args["formdata"] = { # body
+                "action": "proxylister_load_filtered",
+                "nonce": nonce,
+                "filter[protocols]": "HTTP",
+                "filter[anonymity]": "Anonymous",
+                "filter[latency]": "",
+                "filter[page_size]": "40",
+            }
+            # req_args["body"] = json.dumps(req_args["body"])
+            # req_args["headers"] = {'Content-Type':'application/json'}
+            url = urls[1]
+            req_args["url"] = url
+            req_args["callback"] = self.parse_filtered_proxy
+            self.logp("req_args:", req_args)
+            yield scrapy.FormRequest(**req_args)
+        else:
+            req_args["url"] = url
+            req_args["callback"] = self.parse_proxy
+            self.logp("req_args:", req_args)
+            yield scrapy.Request(**req_args)
+
+    def parse_proxy(self, response):
+        """
+        collect proxies
+        """
+        self.logp('parse_filter_proxy',"collect proxies")
+        body = response.body.decode()
+        print(body)
+
+    def parse_filtered_proxy(self, response):
+        """
+        collect proxies
+        """
+        self.logp('proxylister_load_filtered', "collect proxies")
+        # body = response.body.decode()
+        # print(body)
+        # data = json.loads(data)
+        data = response.json()
+        rows = data['data']['rows']
+        # print(rows)
+        soup = bs(f"<table>{rows}</table>", "html.parser")
+        # self.logp(soup.title.string, fg=31)
+
+        # nonce_script_id = "proxylister-js-js-extra"
+        # script = soup.find("script", id=nonce_script_id)
+        trs = soup.find_all("tr")
+        # print(trs)
+        for tr in trs:
+            td = tr.find_all('td')
+            # print(f'{tr}')
+            ip = td[0].strong.string.strip()
+            # print(f'{ip}')
+            port = td[1].string.strip()
+            country = tr.find(class_="country-name").strong
+            city = country.next_sibling.next_sibling.string.strip()
+            country = country.string.strip() + ' - ' + city
+            print(f'{ip}:{port} -- {country}')
+            proxy = {}
+            proxy['ip'] = ip
+            proxy['port'] = port
+            proxy['proxy'] = f'{ip}:{port}'
+            proxy['country'] = country
+            yield proxy
 
     def get_cities(self):
         """
@@ -221,6 +380,7 @@ class QuotesSpider(scrapy.Spider):
 
         gate = "https://alkoteka.com/web-api/v1/"
         ptype = "product"
+        product = ""
         cuuid = self.city_uuid
         page = kwargs.get("page", 1)
         per_page = kwargs.get("per_page", 100)
@@ -240,12 +400,15 @@ class QuotesSpider(scrapy.Spider):
             opts.append(("per_page", f"{per_page}"))
             opts.append(("root_category_slug", f"{catalog}"))
 
-        # self.logp('from url:', url, fg=31)
+        if curl[1] == "product":
+            product = curl[-1]
+
+        self.logp("from url:", url, fg=31)
         # self.logp('curl:', curl)
         # self.logp('opts:', opts)
 
         opts = up.urlencode(opts)
-        url = f"{gate}{ptype}?{opts}"
+        url = f"{gate}{ptype}/{product}?{opts}"
 
         return url
 
@@ -293,7 +456,11 @@ class QuotesSpider(scrapy.Spider):
         data = response.json()
         # print("data: ", data)
 
-        self.product_urls.extend(res["product_url"] for res in data["results"])
+        # self.product_urls.extend(\
+        # res["product_url"] for res in data["results"])
+        for res in data["results"]:
+            name = res["product_url"].split("/")[-1]
+            self.product_urls[name] = res["product_url"]
         pcou = len(self.product_urls)
         self.log(f"\033[1;30;1;47mproducts count: {pcou}\033[0m")
 
@@ -303,18 +470,28 @@ class QuotesSpider(scrapy.Spider):
             self.log("\033[1;30;1;47mcatalog url:" + url + "\033[0m")
             # print(scrapy.Request(
             # url=url, callback=self.parse_catalog).body)
-            yield scrapy.Request(url=url, callback=self.parse_catalog)
+            # yield scrapy.Request(url=url, callback=self.parse_catalog)
+
+            # get catalgo
+            request = scrapy.Request(url=url, callback=self.parse_catalog)
+            # request.meta['proxy'] = "host:port"
+            yield request
         else:
             self.catalog_parsed_count = self.catalog_parsed_count + 1
-            if len(self.catalog_parsed_count) == len(self.catalog_urls):
+            if self.catalog_parsed_count == len(self.catalog_urls):
                 # collect products data
                 urls = self.product_urls
-                for url in urls:
-                    url = self.url_to_rest(url, page=1)
+                for name, url in urls.items():
+                    url = self.url_to_rest(url)
                     self.logp(f"product url: {url}")
                     # print(scrapy.Request(
                     # url=url, callback=self.parse_catalog).body)
-                    yield scrapy.Request(url=url, callback=self.parse_page)
+
+                    # get page
+                    req = scrapy.Request(url=url, callback=self.parse_page)
+                    if self.proxy_pool:
+                        req.meta["proxy"] = random.choice(self.proxy_pool)
+                    yield req
 
         # page = response.url.split("/")[-2]
 
@@ -339,25 +516,63 @@ class QuotesSpider(scrapy.Spider):
         #     print(f'item url: {url}')
         #     yield scrapy.Request(url=url, callback=self.parse_page)
 
+    product_get_marker = 3
+
     def parse_page(self, response):
         """
         parse item pages
         """
         print(f"status: {response.status}")
-        page = response.url.split("/")[-2]
-        filename = f"quotes-{page}.html"
-        Path(filename).write_bytes(response.body)
-        self.log(f"Saved file {filename}")
+        path = up.urlparse(response.url).path
+        name = path.split("/")[-1]
+        url = self.product_urls[name]
+        self.logp("url:", url, fg=31, bg=46)
+        self.logp("url:", url, fg=31, bg=46)
+        data = response.json()
 
-        item = {
-            "title": response.css("title::text").get(),
-            "description": response.css(
-                'meta[name="description"]::attr(content)'
-            ).get(),
-        }
+        if self.product_get_marker > 0:
+            # page = response.url.split("/")[-2]
+            filename = f"quotes-{name}.json"
+            Path(filename).write_bytes(response.body)
+            self.log(f"Saved file {filename}")
+
+            self.product_get_marker = self.product_get_marker - 1
+        # return
+
+        # item = {
+        #     "title": response.css("title::text").get(),
+        #     "description": response.css(
+        #         'meta[name="description"]::attr(content)'
+        #     ).get(),
+        # }
+        # item["url"] = response.url
+        # item["title"] = response.css("title::text").get()
+
         item = dp(OUT_TPL)
-        item["url"] = response.url
-        item["title"] = response.css("title::text").get()
+        if "results" not in data:
+            return
+        res = data["results"]
+        title = [res["name"]]
+        filter = {f["filter"]: f["title"] for f in res["filter_labels"]}
+        descs = {
+            f["code"]: f["values"][0]["name"]
+            for f in res["description_blocks"]
+            if f["type"] == "select"
+        }
+
+        if "cvet" in filter:
+            title.append(filter["cvet"])
+        if "obem" in filter:
+            title.append(filter["obem"])
+        brand = descs.get("proizvoditel", "")
+
+        # item["title"] = res[""][""][""][""]
+        item["timestamp"] = int(time.time())
+        item["RPC"] = res["vendor_code"]
+        item["url"] = url
+        item["title"] = ", ".join(title)
+        item["brand"] = brand
+        item["assets"]["main_image"] = res["image_url"]
         yield item
 
     # def closed(self, reason):

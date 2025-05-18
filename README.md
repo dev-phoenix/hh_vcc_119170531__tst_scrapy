@@ -13,12 +13,12 @@ pip -m venv .env
 pip install -r requirements.txt
 
 # then check contents or run for test
-python main.py
+# python main.py
 # or run with scrapy command
 # scrapy crawl spider_name -O result.json
 cd hhvc_001
 scrapy list
-scrapy crawl quotes -O result.json
+scrapy crawl alco -O proxy.json
 ```
 
 ## be carefully by loading unknown files !!!
