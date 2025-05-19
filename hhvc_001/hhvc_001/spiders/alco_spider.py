@@ -156,11 +156,13 @@ class AlcoSpider(scrapy.Spider):
     product_urls = {}
     catalog_parsed_count = 0
     catalog_urls = []
+    catalogs_file = False
 
     max_result = 10
     get_proxy_count = "1000"
     proxy_from = "proxy.json"
     proxy_on = False
+    proxy_scenario = "json"
 
     # proxy
     # https://proxy5.net/ru/free-proxy
@@ -172,7 +174,7 @@ class AlcoSpider(scrapy.Spider):
             self, *args,
             scenario = None, proxy_from = None,
             proxy_count = None, proxy_on = None,
-            city = None,
+            city = None, catalogs_file = None,
             **kwargs
             ):
         """
@@ -186,6 +188,8 @@ class AlcoSpider(scrapy.Spider):
             self.scenario = 'get alco'
         if proxy_from:
             self.proxy_from = proxy_from
+            ext = self.proxy_from.split('.')[-1]
+            proxy_scenario = ext
         if proxy_count:
             try:
                 proxy_count = int(proxy_count)
@@ -199,6 +203,18 @@ class AlcoSpider(scrapy.Spider):
         self.city_choice = CITY_SET
         if city:
             self.city_choice = city
+        if catalogs_file:
+            self.catalogs_file = catalogs_file
+        
+    def collect_catalogs(self):
+        self.catalog_urls = START_URLS
+        if not self.catalogs_file:
+            return
+        self.catalog_urls = []
+        with open(self.catalogs_file, 'r', encoding="utf-8") as file:
+            for row in file:
+                if row:
+                    self.catalog_urls.append(row)
 
     async def start(self):
         """
@@ -230,15 +246,20 @@ class AlcoSpider(scrapy.Spider):
             return self.get_proxy()
 
         if self.scenario.strip() == "get alco":
-            self.catalog_urls = START_URLS
             return self.get_cities()
         return None
 
     def load_proxy(self, file_name: str = 'proxy.json') -> None:
         """Load proxies from file"""
+
         # json_proxy = Path(file_name).read()
         with open(file_name, 'r', encoding="utf-8") as file:
             data = json.load(file)
+            if self.proxy_scenario == "txt":
+                data = []
+                for row in file:
+                    if row:
+                        data.append(row)
             for p in data:
                 if self.is_dict(p):
                     p = p['proxy']

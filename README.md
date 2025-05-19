@@ -34,6 +34,12 @@ scrapy crawl alco -O result.json
 scrapy crawl alco -O result.json -a city=Москва
 ```
 
+### city choice:
+```sh
+# to choce catalog url list. catalog.txt contains one url per row.
+scrapy crawl alco -O result.json -a catalogs_file=catalog.txt
+```
+
 ### run with proxy:
 ```sh
 # collect proxy from ://proxy5.net
@@ -46,7 +52,7 @@ scrapy crawl alco -O result.json -a proxy_on=on
 ### set limit of collected proxy:
 ```sh
 # collect proxy with chiced count (default: 1000)
-scrapy crawl alco -O proxy.json -a scenario=proxy proxy_count=10
+scrapy crawl alco -O proxy.json -a scenario=proxy -a proxy_count=10
 ```
 
 ### run with filtered proxy:
@@ -55,7 +61,7 @@ scrapy crawl alco -O proxy.json -a scenario=proxy proxy_count=10
 python3 proxy_checker.py
 
 # run crawler with filtered proxy
-scrapy crawl alco -O result.json -a proxy_on=on proxy_from=proxy_filtered_3.json
+scrapy crawl alco -O result.json -a proxy_on=on -a proxy_from=proxy_filtered_3.json
 ```
 
 ### be carefully by loading unknown files !!!
