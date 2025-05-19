@@ -11,15 +11,17 @@ import urllib.parse as up
 import time
 import random
 import re
+import logging
 
 from bs4 import BeautifulSoup as bs
 import scrapy
-
 # from scrapy.exporters import JsonItemExporter
 
+log = logging.getLogger('scrapy.proxies')
+
 # set location
-CITY_SET = "Краснодар"
 CITY_SET = "Москва"
+CITY_SET = "Краснодар"
 
 # default location
 CITY_DEF = "Краснодар"
@@ -113,13 +115,13 @@ https://alkoteka.com/web-api/v1/product\
 &page=1&per_page=20&root_category_slug=slaboalkogolnye-napitki-2\
 """
 
-"""
+TESTURL = """
 https://alkoteka.com/web-api/v1/product
 ?city_uuid=4a70f9e0-46ae-11e7-83ff-00155d026416&page=4
 &per_page=20&root_category_slug=slaboalkogolnye-napitki-2
 """
 
-"""
+TESTURL = """
 https://alkoteka.com/product/pivo-1/shtefans-brau-shvarcbir_29300
 =>
 https://alkoteka.com/web-api/v1/product/shtefans-brau-shvarcbir_29300
@@ -134,7 +136,7 @@ https://alkoteka.com/web-api/v1/product/velkopopovickiy-kozel-svetlyy_91167
 """
 
 
-class QuotesSpider(scrapy.Spider):
+class AlcoSpider(scrapy.Spider):
     """
     hello world spider
     transformed for tecnical tasks
@@ -148,17 +150,55 @@ class QuotesSpider(scrapy.Spider):
 
     cities = {}
     cities_page = 1
+    city_choice = CITY_SET
     city_name = CITY_DEF
     city_uuid = CITY_UUID_DEF
     product_urls = {}
     catalog_parsed_count = 0
     catalog_urls = []
 
+    max_result = 10
+    get_proxy_count = "1000"
+    proxy_from = "proxy.json"
+    proxy_on = False
+
     # proxy
     # https://proxy5.net/ru/free-proxy
     proxy_list = []
 
-    scenario = "test poxy"
+    scenario = "get proxy"
+
+    def __init__(
+            self, *args,
+            scenario = None, proxy_from = None,
+            proxy_count = None, proxy_on = None,
+            city = None,
+            **kwargs
+            ):
+        """
+        initialization
+        """
+        super(AlcoSpider, self).__init__(*args, **kwargs)
+        # super(*args, **kwargs)
+        if scenario == 'proxy':
+            self.scenario = 'get proxy'
+        else:
+            self.scenario = 'get alco'
+        if proxy_from:
+            self.proxy_from = proxy_from
+        if proxy_count:
+            try:
+                proxy_count = int(proxy_count)
+            except:
+                ...
+            else:
+                self.get_proxy_count = str(proxy_count)
+        if proxy_on in ['on', 'off'] and proxy_on == 'on':
+            self.proxy_on = True
+
+        self.city_choice = CITY_SET
+        if city:
+            self.city_choice = city
 
     async def start(self):
         """
@@ -179,29 +219,43 @@ class QuotesSpider(scrapy.Spider):
         # url = CITIES_URL.format(page=self.cities_page)
         # yield scrapy.Request(url=url, callback=self.parse)
 
-        self.scenario = "get alco"
-        self.scenario = "test proxy"
+        self.load_proxy(self.proxy_from)
+        # return
+
+        # self.scenario = "get alco"
+        # self.scenario = "get proxy"
         self.logp("scenario:", self.scenario.strip())
 
-        if self.scenario.strip() == "test proxy":
+        if self.scenario.strip() == "get proxy":
             return self.get_proxy()
 
         if self.scenario.strip() == "get alco":
             self.catalog_urls = START_URLS
             return self.get_cities()
+        return None
+
+    def load_proxy(self, file_name: str = 'proxy.json') -> None:
+        """Load proxies from file"""
+        # json_proxy = Path(file_name).read()
+        with open(file_name, 'r', encoding="utf-8") as file:
+            data = json.load(file)
+            for p in data:
+                if self.is_dict(p):
+                    p = p['proxy']
+                self.proxy_list.append(p['proxy'])
 
     def get_proxy(self):
         """
         get proxies
         """
         self.logp("get proxies")
-        params = {}
+        # params = {}
         url = "https://proxy5.net/ru/wp-admin/admin-ajax.php"
         url = "https://proxy5.net/ru/free-proxy"
         req_args = {}
         req_args["url"] = url
         req_args["callback"] = self.parse_proxy_get_nonce
-        nonce = ""
+        # nonce = ""
         # req_args['method'] = 'POST'
         # req_args['body'] = {'action':'proxylister_load_filtered',
         # 'nonce':nonce,'filter[protocols]':'HTTP',
@@ -209,6 +263,15 @@ class QuotesSpider(scrapy.Spider):
         # 'filter[page_size]':'20',}
         self.logp("req_args:", req_args)
         yield scrapy.Request(**req_args)
+    
+    def is_dict(self, obj):
+        return obj.__class__.__name__ == 'dict'
+    
+    def is_list(self, obj):
+        return obj.__class__.__name__ == 'list'
+    
+    def is_str(self, obj):
+        return obj.__class__.__name__ == 'str'
 
     def parse_proxy_get_nonce(self, response):
         """
@@ -231,7 +294,7 @@ class QuotesSpider(scrapy.Spider):
         data = json.loads(data)
         nonce = data['nonce']
         self.logp('nonce:', nonce, fg=31)
-        ret = {'nonce': nonce}
+        # ret = {'nonce': nonce}
         # yield ret
 
         # nonce_script_id = 'proxylister-js-js-extra'
@@ -247,13 +310,13 @@ class QuotesSpider(scrapy.Spider):
         # nonce = ""
         if nonce:
             req_args["method"] = "POST"
-            req_args["formdata"] = { # body
+            req_args["formdata"] = {  # body
                 "action": "proxylister_load_filtered",
                 "nonce": nonce,
                 "filter[protocols]": "HTTP",
                 "filter[anonymity]": "Anonymous",
                 "filter[latency]": "",
-                "filter[page_size]": "40",
+                "filter[page_size]": self.get_proxy_count,
             }
             # req_args["body"] = json.dumps(req_args["body"])
             # req_args["headers"] = {'Content-Type':'application/json'}
@@ -261,7 +324,16 @@ class QuotesSpider(scrapy.Spider):
             req_args["url"] = url
             req_args["callback"] = self.parse_filtered_proxy
             self.logp("req_args:", req_args)
-            yield scrapy.FormRequest(**req_args)
+            req = scrapy.FormRequest(**req_args)
+            # req = scrapy.Request(url=url, callback=self.parse_page)
+            if self.proxy_list:
+                proxy = random.choice(self.proxy_list)
+                if self.is_dict(proxy):
+                    proxy = proxy['proxy']
+                proxy = f'{proxy}'
+                print(proxy)
+                # req.meta["proxy"] = proxy
+            yield req
         else:
             req_args["url"] = url
             req_args["callback"] = self.parse_proxy
@@ -272,7 +344,7 @@ class QuotesSpider(scrapy.Spider):
         """
         collect proxies
         """
-        self.logp('parse_filter_proxy',"collect proxies")
+        self.logp('parse_filter_proxy', "collect proxies")
         body = response.body.decode()
         print(body)
 
@@ -333,9 +405,9 @@ class QuotesSpider(scrapy.Spider):
             yield scrapy.Request(url=url, callback=self.parse_cities)
         else:
             # print("sites: ", self.cities)
-            if CITY_SET in self.cities:
-                self.city_uuid = self.cities[CITY_SET]
-                self.city_name = CITY_SET
+            if self.city_choice in self.cities:
+                self.city_uuid = self.cities[self.city_choice]
+                self.city_name = self.city_choice
             print(
                 "\033[1;30;1;47mselected location:",
                 self.city_name,
@@ -460,7 +532,7 @@ class QuotesSpider(scrapy.Spider):
         # res["product_url"] for res in data["results"])
         for res in data["results"]:
             name = res["product_url"].split("/")[-1]
-            self.product_urls[name] = res["product_url"]
+            self.product_urls[name] = {'url': res["product_url"]}
         pcou = len(self.product_urls)
         self.log(f"\033[1;30;1;47mproducts count: {pcou}\033[0m")
 
@@ -481,7 +553,13 @@ class QuotesSpider(scrapy.Spider):
             if self.catalog_parsed_count == len(self.catalog_urls):
                 # collect products data
                 urls = self.product_urls
+                max_result = self.max_result
                 for name, url in urls.items():
+                    if max_result == 0:
+                        break
+                    max_result -= 1
+                    url = url['url']
+                    name = url.split("/")[-1]
                     url = self.url_to_rest(url)
                     self.logp(f"product url: {url}")
                     # print(scrapy.Request(
@@ -489,9 +567,19 @@ class QuotesSpider(scrapy.Spider):
 
                     # get page
                     req = scrapy.Request(url=url, callback=self.parse_page)
-                    if self.proxy_pool:
-                        req.meta["proxy"] = random.choice(self.proxy_pool)
+                    if self.proxy_on and self.proxy_list:
+                        proxy = random.choice(self.proxy_list)
+                        if self.is_dict(proxy):
+                            proxy = proxy['proxy']
+                        # proxy = f'https://{proxy}'
+                        proxy = f'{proxy}'
+                        print(proxy)
+                        req.meta["proxy"] = proxy
+                        # path = up.urlparse(response.url).path
+                        # name = path.split("/")[-1]
+                        self.product_urls[name]['proxy'] = proxy
                     yield req
+                self.logp(f"to parse cou: {self.max_result}")
 
         # page = response.url.split("/")[-2]
 
@@ -525,7 +613,8 @@ class QuotesSpider(scrapy.Spider):
         print(f"status: {response.status}")
         path = up.urlparse(response.url).path
         name = path.split("/")[-1]
-        url = self.product_urls[name]
+        url = self.product_urls[name]["url"]
+        proxy = self.product_urls[name]['proxy']
         self.logp("url:", url, fg=31, bg=46)
         self.logp("url:", url, fg=31, bg=46)
         data = response.json()
@@ -553,17 +642,17 @@ class QuotesSpider(scrapy.Spider):
             return
         res = data["results"]
         title = [res["name"]]
-        filter = {f["filter"]: f["title"] for f in res["filter_labels"]}
+        filters = {f["filter"]: f["title"] for f in res["filter_labels"]}
         descs = {
             f["code"]: f["values"][0]["name"]
             for f in res["description_blocks"]
             if f["type"] == "select"
         }
 
-        if "cvet" in filter:
-            title.append(filter["cvet"])
-        if "obem" in filter:
-            title.append(filter["obem"])
+        if "cvet" in filters:
+            title.append(filters["cvet"])
+        if "obem" in filters:
+            title.append(filters["obem"])
         brand = descs.get("proizvoditel", "")
 
         # item["title"] = res[""][""][""][""]
@@ -573,6 +662,8 @@ class QuotesSpider(scrapy.Spider):
         item["title"] = ", ".join(title)
         item["brand"] = brand
         item["assets"]["main_image"] = res["image_url"]
+        item["proxy"] = proxy
+        self.logp(proxy, fg=31, bg=46)
         yield item
 
     # def closed(self, reason):

@@ -402,8 +402,6 @@ FodyWeavers.xsd
 
 # project settings
 *.*
-.*
-_*
 req
 pjs
 pdu
@@ -418,6 +416,10 @@ pdu
 
 !/hhvc_001/*
 !/hhvc_001/**/*
+.*
+_*
+*.log
+*copy*
 
 /hhvc_001/**/__pycache__
 /hhvc_001/*.html
