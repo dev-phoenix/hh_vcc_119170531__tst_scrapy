@@ -6,7 +6,7 @@
 <a href="https://github.com/dev-phoenix/hh_vcc_119170531__tst_scrapy/pulse" alt="Activity">
 <img src="https://img.shields.io/github/commit-activity/m/dev-phoenix/hh_vcc_119170531__tst_scrapy" /></a>
 
-[Scrapy docs](https://www.scrapy.org/)
+[Scrapy v2.11 docs](https://docs.scrapy.org/en/2.11/)
 
 ### to start:
 ```sh
@@ -28,21 +28,43 @@ scrapy list
 scrapy crawl alco -O result.json
 ```
 
+### settings:
+All available main settings of spider  
+placed in [hhvc_001/hhvc_001/spiders/params.py](hhvc_001/hhvc_001/spiders/params.py)
+
+### help on linux:
+```sh
+# shows following below tips
+. help
+```
+
 ### city choice:
 ```sh
 # to choce city (default: Краснодар)
 scrapy crawl alco -O result.json -a city=Москва
 ```
 
-### city choice:
+### catalogs choice:
 ```sh
 # to choce catalog url list. catalog.txt contains one url per row.
 scrapy crawl alco -O result.json -a catalogs_file=catalog.txt
 ```
 
+### parse limit:
+```sh
+# set limit for result count. (default: 10; all: 0)
+scrapy crawl alco -O result.json -a product_count=2
+```
+
+### structured result:
+```sh
+# set debug=1 for filling result json with structured dump of items
+scrapy crawl alco -O result.json -a product_count=2 -a debug=1
+```
+
 ### run with proxy:
 ```sh
-# collect proxy from ://proxy5.net
+# collect proxy from ://proxy5.net (work only with http, not https:( )
 scrapy crawl alco -O proxy.json -a scenario=proxy
 
 # run crawler with collected proxy
@@ -62,6 +84,13 @@ python3 proxy_checker.py
 
 # run crawler with filtered proxy
 scrapy crawl alco -O result.json -a proxy_on=on -a proxy_from=proxy_filtered_3.json
+```
+
+### run with proxy in txt file:
+```sh
+# proxy txt file must containing on proxy per row.
+# skip rows started with "#"
+scrapy crawl alco -O result.json -a proxy_on=on -a proxy_from=proxy.txt
 ```
 
 ### be carefully by loading unknown files !!!

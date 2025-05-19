@@ -61,7 +61,7 @@ https://alkoteka.com/web-api/v1/product/flensburger-pilsner_68231\
         print()
         print(f"\033[1;{fg};{bg}m", *args, "\033[0m", **kwargs)
 
-    def load_proxy(self, file_name: str = "proxy.json") -> None:
+    def load_proxy(self, file_name: str = "") -> None:
         """Load proxies from file"""
         if not file_name:
             file_name = self.file_name
@@ -177,6 +177,7 @@ https://alkoteka.com/web-api/v1/product/flensburger-pilsner_68231\
         if not out_name:
             out_name = self.out_name
         self.logp(f'pass: {self.ok}; fail: {self.fail}; error: {self.error}; ', fg=31)
+        self.logp(f'saved to: {out_name}; ', fg=31)
         self.logp(f'save: {len(self.proxy_list_filtered)}; ', fg=31)
         with open(out_name, 'w') as file:
             file.write("[\n")
@@ -201,8 +202,14 @@ if __name__ == "__main__":
         from_name ="proxy.json"
         to_name = "proxy_filtered_3.json"
 
+        from_name ="proxy_filtered_3.json"
+        to_name = "proxy_filtered_https.json"
+
+        from_name ="proxy.json"
+        to_name = "proxy_filtered_https_2.json"
+
         schema = 'https'
-        schema = 'http'
+        # schema = 'http'
         pts = ParserTs(schema=schema, from_name=from_name, to=to_name)
         pts.load_proxy()
         pts.check()
