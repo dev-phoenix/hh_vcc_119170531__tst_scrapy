@@ -59,7 +59,9 @@ class AlcoHelperCities(HHVCSSHelper):
 
             # collect category products
             urls = self.catalog_urls
+            print()
             print("urls", urls)
+            print()
             for url in urls:
                 url = self.url_to_rest(url, page=1)
                 self.logp(f"catalog url: {url}")
