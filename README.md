@@ -8,6 +8,40 @@
 
 [Scrapy v2.11 docs](https://docs.scrapy.org/en/2.11/)
 
+## major structure:
+```sh
+hhvc_001/
+| hhvc_001/
+| | spiders/
+| | + alco_spider.py # main spider script
+| | + alcohelpercities.py # collect cities
+| | + alcohelperproxy.py # collect free proxy
+| | + params.py # contain variable with catalogs list for collecting urls
+| | hhvc_helper/
+| | | + hhvc_h_lib.py # helper methods for main script
+| | | + models.py # containg main data structure for output
+| + proxy.txt # simple plain list with proxies
+```
+
+### features:
+- **Takes catalog urls from attribute or file**
+- **Parsing free proxy list**
+- **Alternatively: Takes simple plain proxy list from txt file**
+- **On/Off using proxy by seting from running comand line**
+- **Automaticly parsing uuid list for choice city**
+- **Using orher choiced city**
+
+### catalog urls:
+file `hhvc_001/hhvc_001/spiders/alco_spider.py`  
+contains attribute `start_url` with list of catalogs for collectin product urls  
+If it's not existts or empty  
+urls will takes from variable `START_URLS` located on file:  
+`hhvc_001/hhvc_001/spiders/params.py`  
+
+### default city:
+If it's containg in variable `CITY_SET` located on file:  
+`hhvc_001/hhvc_001/spiders/params.py`  
+
 ### to start:
 ```sh
 git clone https://github.com/dev-phoenix/hh_vcc_119170531__tst_scrapy.git
@@ -56,9 +90,9 @@ scrapy crawl alco -O result.json -a catalogs_file=catalog.txt
 scrapy crawl alco -O result.json -a product_count=2
 ```
 
-### structured result:
+### debug:
 ```sh
-# set debug=1 for filling result json with structured dump of items
+# set debug=1 for more debugging
 scrapy crawl alco -O result.json -a product_count=2 -a debug=1
 ```
 

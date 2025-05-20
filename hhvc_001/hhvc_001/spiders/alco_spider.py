@@ -39,7 +39,7 @@ class AlcoSpider(scrapy.Spider, AlcoHelperCities, AlcoHelperProxy):
     custom_settings = {
         "DOWNLOAD_DELAY": 0.25,  # 250 ms of delay
     }
-    debug = (False,)
+    debug = 0
 
     product_urls = {}
     catalog_parsed_count = 0
@@ -53,6 +53,10 @@ class AlcoSpider(scrapy.Spider, AlcoHelperCities, AlcoHelperProxy):
     proxy_list = []
 
     scenario = "get proxy"
+
+    start_url = [
+        "https://alkoteka.com/catalog/aksessuary-2"
+        ]
 
     def __init__(
         self,
@@ -108,6 +112,9 @@ class AlcoSpider(scrapy.Spider, AlcoHelperCities, AlcoHelperProxy):
 
     def collect_catalogs(self):
         """collect catalog urls from file"""
+        if hasattr(self, "start_url") and self.start_url:
+            print(self.get('start_url'))
+            self.catalog_urls = self.start_url
         self.logp("catalog_urls", self.catalog_urls)
         if not self.catalogs_file:
             return
@@ -128,14 +135,6 @@ class AlcoSpider(scrapy.Spider, AlcoHelperCities, AlcoHelperProxy):
         version: v2.11
         """
         self.attrdump()
-        # urls = [
-        #     "https://quotes.toscrape.com/page/1/",
-        #     "https://quotes.toscrape.com/page/2/",
-        #     # "https://quotes.toscrape.com/page/1/",
-        #     # "https://quotes.toscrape.com/page/2/",
-        # ]
-        # url = CITIES_URL.format(page=self.cities_page)
-        # yield scrapy.Request(url=url, callback=self.parse)
 
         self.load_proxy(self.proxy_from)
         # return
@@ -184,17 +183,12 @@ class AlcoSpider(scrapy.Spider, AlcoHelperCities, AlcoHelperProxy):
         parse catalog pages
         """
         self.logp("parse catalog pages")
-        # print(f"status: {response.status}")
-        # print("response: ", dir(response))
 
         url = response.url
         self.logp("url:", url, fg=31, bg=46)
 
         data = response.json()
-        # print("data: ", data)
 
-        # self.product_urls.extend(\
-        # res["product_url"] for res in data["results"])
         for res in data["results"]:
             name = res["product_url"].split("/")[-1]
             self.product_urls[name] = {"url": res["product_url"]}
@@ -205,11 +199,8 @@ class AlcoSpider(scrapy.Spider, AlcoHelperCities, AlcoHelperProxy):
             url = self.url_page_increment(url)
             self.logp(f"next catalog url: {url}")
             self.log("\033[1;30;1;47mcatalog url:" + url + "\033[0m")
-            # print(scrapy.Request(
-            # url=url, callback=self.parse_catalog).body)
-            # yield scrapy.Request(url=url, callback=self.parse_catalog)
 
-            # get catalgo
+            # get catalg
             request = scrapy.Request(url=url, callback=self.parse_catalog)
             # request.meta['proxy'] = "host:port"
             yield request
@@ -235,8 +226,6 @@ class AlcoSpider(scrapy.Spider, AlcoHelperCities, AlcoHelperProxy):
                     name = url.split("/")[-1]
                     url = self.url_to_rest(url)
                     self.logp(f"product url: {url}")
-                    # print(scrapy.Request(
-                    # url=url, callback=self.parse_catalog).body)
 
                     # get page
                     req = scrapy.Request(url=url, callback=self.parse_page)
@@ -246,36 +235,13 @@ class AlcoSpider(scrapy.Spider, AlcoHelperCities, AlcoHelperProxy):
                             proxy = proxy["proxy"]
                         # proxy = f'https://{proxy}'
                         proxy = f"{proxy}"
-                        print(proxy)
+                        self.logp(proxy, fg=0, bg=0)
                         req.meta["proxy"] = proxy
                         # path = up.urlparse(response.url).path
                         # name = path.split("/")[-1]
                         self.product_urls[name]["proxy"] = proxy
                     yield req
                 self.logp(f"to parse cou: {self.max_result}")
-
-        # page = response.url.split("/")[-2]
-
-        # filename = f"quotes-{page}.html"
-        # Path(filename).write_bytes(response.body)
-        # self.log(f"Saved file {filename}")
-
-        # item = {
-        #     "title": response.css("title::text").get(),
-        #     "description": response.css(
-        #         'meta[name="description"]::attr(content)'
-        #     ).get(),
-        # }
-        # item = dp(OUT_TPL)
-        # item["url"] = response.url
-        # item["title"] = response.css("title::text").get()
-        # yield item
-
-        # next_page = response.css("li.next a::attr(href)").get()
-        # urls = response.css("li.next a::attr(href)").get()
-        # for url in urls:
-        #     print(f'item url: {url}')
-        #     yield scrapy.Request(url=url, callback=self.parse_page)
 
     product_get_marker = 3
 
@@ -299,16 +265,6 @@ class AlcoSpider(scrapy.Spider, AlcoHelperCities, AlcoHelperProxy):
             self.log(f"Saved file {filename}")
 
             self.product_get_marker = self.product_get_marker - 1
-        # return
-
-        # item = {
-        #     "title": response.css("title::text").get(),
-        #     "description": response.css(
-        #         'meta[name="description"]::attr(content)'
-        #     ).get(),
-        # }
-        # item["url"] = response.url
-        # item["title"] = response.css("title::text").get()
 
         item = dp(OUT_TPL)
         if "results" not in data:
@@ -354,7 +310,7 @@ class AlcoSpider(scrapy.Spider, AlcoHelperCities, AlcoHelperProxy):
         price_discount = ""
         if price != price_old:
             price_discount = 100 - (price / price_old * 100)
-            price_discount = f"Скидка {price_discount}%"
+            price_discount = f"Скидка {int(price_discount)}%"
 
         in_stock = False
         count = int(res.get("quantity_total", 0))
@@ -363,9 +319,25 @@ class AlcoSpider(scrapy.Spider, AlcoHelperCities, AlcoHelperProxy):
             in_stock = True
         stock = {"in_stock": in_stock, "count": count}
 
+        text_blocks = res.get("text_blocks",[])
+        # self.logp('text_blocks',res["text_blocks"], fg=31, bg=46)
+        # self.logp('text_blocks',text_blocks, fg=31, bg=46)
+        content = ""
+        for i in text_blocks:
+            if "title" in i and i["title"] == "Описание" and "content" in i:
+                content = i["content"]
+        # self.logp('content',content, fg=31, bg=46)
+
+        vendor_code = res["vendor_code"]
+
+        metadata = {}
+        metadata["__description"] = content
+        metadata["vendor_code"] = vendor_code
+        metadata.update(descs)
+
         # item["title"] = res[""][""][""][""]
         item["timestamp"] = int(time.time())
-        item["RPC"] = res["vendor_code"]
+        item["RPC"] = vendor_code
         item["url"] = url
         item["title"] = ", ".join(title)
         item["marketing_tags"] = []
@@ -379,23 +351,9 @@ class AlcoSpider(scrapy.Spider, AlcoHelperCities, AlcoHelperProxy):
         prices["sale_tag"] = price_discount
         item["price_data"] = prices
         item["stock"] = stock
+        item["metadata"] = metadata
 
         item["proxy"] = proxy
         self.logp(proxy, fg=31, bg=46)
         yield item
 
-    # def closed(self, reason):
-    #     v = self.crawler.stats.get_value("item_scraped_count")
-    #     print(f'count: {v}')
-    #     v = self.crawler.stats.get_value('item_scraped_count').values()
-    #     # items = list(v)[0]
-    #     items = self.crawler.stats.get_value('item_scraped_count')
-    #     items = []
-    #     filename = 'data.json'
-    #     with open(filename, 'wb') as file:
-    #         exporter = JsonItemExporter(file)
-    #         exporter.start_exporting()
-    #         for item in self.crawler.stats.get_value('items'):
-    #             exporter.export_item(item)
-    #         exporter.finish_exporting()
-    #     self.log(f'Saved file {filename}, containing {items} items')

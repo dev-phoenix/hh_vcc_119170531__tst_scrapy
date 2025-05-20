@@ -10,6 +10,7 @@ from hhvc_001.spiders.params import (
 class HHVCSSHelper:
     """HH Vacancy Scrapy Spider Helper"""
     city_uuid = CITY_UUID_DEF
+    debug = False
 
     def is_dict(self, obj):
         """check is the objecs instance of dictionary"""
@@ -25,6 +26,8 @@ class HHVCSSHelper:
 
     def logp(self, *args, **kwargs):
         """colored print"""
+        if not self.debug:
+            return
         fg = kwargs.get("fg", 30)
         bg = kwargs.get("bg", 47)
         if "fg" in kwargs:
@@ -35,8 +38,16 @@ class HHVCSSHelper:
         print(f"\033[1;{fg};1;{bg}m", end="")
         print(*args, **kwargs, end="\033[0m\n")
 
+    def get(self, attr):
+        out = None
+        if hasattr(self, attr):
+            out = getattr(self, attr)
+        return out
+
     def attrdump(self):
         """output self class attributes"""
+        if not self.debug:
+            return
         properties = [p for p in dir(self) if not p.startswith("_")]
         for p in properties:
             data = getattr(self, p)
