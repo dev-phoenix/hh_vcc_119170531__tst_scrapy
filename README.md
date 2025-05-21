@@ -28,7 +28,7 @@ hhvc_001/
 - **Parsing free proxy list**
 - **Alternatively: Takes simple plain proxy list from txt file**
 - **On/Off using proxy by seting from running comand line**
-- **Automaticly parsing uuid list for choice city**
+- **Automaticly parses uuid list for choice city**
 - **Using orher choiced city**
 
 ### catalog urls:
